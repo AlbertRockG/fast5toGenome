@@ -3,24 +3,40 @@
 # Created on Fri June 23 14:31:04 2023    
 # @author: AlbertRockG
 
+export LC_ALL="C"
+set -euop pipefail
+
+### FUNCTIONS-------------------------------------------------------------------------------------------------------------------------------
 # Function to display usage information
 usage() {
-    echo "Usage: $0 -c <guppy_config> -i <input_dir> -o <output_dir> -k <barcode_kits> -m <medaka_model> -b <batchsize>"
-    echo "Options:"
-    echo "  -c, --guppy-config     Guppy config file"
-    echo "  -i, --input-dir        Input directory"
-    echo "  -o, --output-dir       Output directory: different from the input directory"
-    echo "  -k, --barcode-kits     Barcode kits"
-    echo "  -m, --medaka-model     Medaka model: only high accuracy models supported"
-    echo "  -b, --batchsize        GPU memory control: controls memory use (default: 100)."
-    exit 1
+    printf '
+Usage: %s [OPTIONS]
+
+    Basecalls, trims, joins, assembles and polish bacteria isolates genome sequencing
+    data. Take fast5 files as inputs.
+
+    OPTIONS
+        -c, --guppy-config     Guppy config file
+        -i, --input-dir        Input directory
+        -o, --output-dir       Output directory: different from the input directory
+        -k, --barcode-kits     Barcode kits
+        -m, --medaka-model     Medaka model: only high accuracy models supported
+        -b, --batchsize        GPU memory control: controls memory use (default: 100)
+    ' "$(basename "$0")" &&
+        exit 1
 }
+
+err_msg() { echo "${0##*/}: $*" >&2; }
+
+emit() { (( !VERBOSE )) || err_msg "$*"; }
+
+err_exit() { err_msg "$*"; exit 1; }
 
 # Function to concatenate fastq.gz files in a subfolder
 concatenate_fastq() {
-    local subfolder=$1
+    local subfolder="$1"
 
-    echo "Processing subfolder: $subfolder"
+    emit "Processing subfolder: $subfolder"
 
     # Create the "joined" folder in the parent directory
     parent_dir=$(dirname "$subfolder")
@@ -33,15 +49,15 @@ concatenate_fastq() {
     # Concatenate fastq.gz files into the output file
     gunzip -c "$subfolder"/*.fastq.gz | gzip -c > "$output_file"
 
-    echo "Concatenated fastq.gz files into: $output_file"
-    echo ""
+    emit "Concatenated fastq.gz files into: $output_file"
+    emit ""
 }
 
 # Function to run flye on a joined_fastq file
 run_fly() {
-    local input_file=$1
+    local input_file="$1"
 
-    echo "Processing file: $input_file"
+    emit "Processing file: $input_file"
 
     # Create the "assembled" folder in the parent directory
     parent_dir="${input_file%%/*}"
@@ -54,15 +70,15 @@ run_fly() {
     # Run flye on the input file
     flye -t "$(nproc)" --out-dir "$output" --nano-hq "$input_file"
 
-    echo "Flye analysis completed for: $input_file"
-    echo ""
+    emit "Flye analysis completed for: $input_file"
+    emit ""
 }
 
 # Function to run flye on a joined_fastq file
 run_medaka() {
-    local input_file=$1
+    local input_file="$1"
 
-    echo "Processing file: $input_file"
+    emit "Processing file: $input_file"
 
     # Create the "polished" folder in the parent directory
     main_dir="${input_file%%/*}"
@@ -78,11 +94,11 @@ run_medaka() {
                  -d "$main_dir"/assembled/"$assembly_dir"/assembly.fasta \
                  -o "$output" -m "$medaka_model" -t "$(nproc)" -b "$batchsize"
 
-    echo "Medaka analysis completed for: $input_file"
-    echo ""
+    emit "Medaka analysis completed for: $input_file"
+    emit ""
 }
 
-
+### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------------
 # Parse command-line options
 while getopts ":c:i:o:k:m:b:" opt; do
     case "${opt}" in
@@ -111,8 +127,8 @@ while getopts ":c:i:o:k:m:b:" opt; do
 done
 
 # Check if all required options are provided
-if [[ -z $guppy_config || -z $input_dir || -z $output_dir || -z $barcode_kits || -z $medaka_model ]]; then
-    echo "Error: Missing required options"
+
+if [[ -z "${guppy_config:-}" || -z "${input_dir:-}" || -z "${output_dir:-}" || -z "${barcode_kits:-}" || -z "${medaka_model:-}" ]]; then
     usage
 fi
 
@@ -126,37 +142,21 @@ guppy_basecaller --disable_pings -x auto \
 guppy_barcoder -t "$(nproc)" --disable_pings -x auto \
     --barcode_kits "$barcode_kits" --enable_trim_barcodes \
     -i "$output_dir/basecalled" --recursive \
-    -s "$output_dir/trimmed" --compress_fastq
+    -s "$output_dir/home/sequser/miniconda3/etc/profile.d/conda.shir/trimmed" --compress_fastq
 
 # Step 3: Join fastq.gz files
 
 # Loop through subfolders in the input folder
 for subfolder in "$output_dir"/trimmed/*; do
-    if [[ -d $subfolder ]]; then
-        concatenate_fastq "$subfolder"
-    fi
+    [[ ! -d "$subfolder" ]] || concatenate_fastq "$subfolder" || emit "no such directory: $subfolder"
 done
 
 # Step 4: Run flye
 for input_file in "$output_dir"/joined/*.fastq.gz; do
-    if [[ -f $input_file ]]; then
-        run_flye "$input_file"
-    fi
+    [[ ! -f $input_file ]] || run_flye "$input_file" || emit "no such file: $input_file"
 done
 
 # Step 6: Run medaka_consensus
-conda_env=medaka
-
-if conda info --envs | grep -wq "$conda_env"; then
-    # Activate conda environment
-    conda activate medaka
-
-    for input_file in "$output_dir"/joined/*.fastq.gz; do
-        if [[ -f $input_file ]]; then
-            run_medaka "$input_file"
-        fi
-    done
-
-    # Deactivate conda environment
-    conda deactivate
-fi
+for input_file in "$output_dir"/joined/*.fastq.gz; do
+    [[ ! -f $input_file ]] || run_medaka "$input_file" || emit "no such file: $input_file"
+done
