@@ -5,8 +5,7 @@
 
 export LC_ALL="C"
 set -euop pipefail
-
-### FUNCTIONS-------------------------------------------------------------------------------------------------------------------------------
+### FUNCTIONS --------------------------------------------------------------------------------------------------------------------------
 # Function to display usage information
 usage() {
     printf '
@@ -16,21 +15,29 @@ Usage: %s [OPTIONS]
     data. Take fast5 files as inputs.
 
     OPTIONS
-        -c, --guppy-config     Guppy config file
-        -i, --input-dir        Input directory
-        -o, --output-dir       Output directory: different from the input directory
-        -k, --barcode-kits     Barcode kits
-        -m, --medaka-model     Medaka model: only high accuracy models supported
-        -b, --batchsize        GPU memory control: controls memory use (default: 100)
+        -c  Guppy config file
+        -i  Input directory
+        -o  Output directory: different from the input directory
+        -k  Barcode kits
+        -m  Medaka model: only high accuracy models supported
+        -b  GPU memory control: controls memory use (default: 100)
+        -v  Enable verbosity
     ' "$(basename "$0")" &&
         exit 1
 }
 
-err_msg() { echo "${0##*/}: $*" >&2; }
+err_msg() {
+    echo "${0##*/}: $*" >&2; 
+}
 
-emit() { (( !VERBOSE )) || err_msg "$*"; }
+emit() {
+    (( !VERBOSE )) || err_msg "$*"; 
+}
 
-err_exit() { err_msg "$*"; exit 1; }
+err_exit() {
+    err_msg "$*";
+    exit 1; 
+}
 
 # Function to concatenate fastq.gz files in a subfolder
 concatenate_fastq() {
@@ -39,7 +46,7 @@ concatenate_fastq() {
     emit "Processing subfolder: $subfolder"
 
     # Create the "joined" folder in the parent directory
-    parent_dir=$(dirname "$subfolder")
+    parent_dir="${subfolder%/*/*}"
     joined_folder="$parent_dir/joined"
     mkdir -p "$joined_folder"
 
@@ -54,13 +61,13 @@ concatenate_fastq() {
 }
 
 # Function to run flye on a joined_fastq file
-run_fly() {
+run_flye() {
     local input_file="$1"
 
     emit "Processing file: $input_file"
 
     # Create the "assembled" folder in the parent directory
-    parent_dir="${input_file%%/*}"
+    parent_dir="${input_file%/*/*}"
     assembly_folder="$parent_dir/assembled"
     mkdir -p "$assembly_folder"
 
@@ -81,7 +88,7 @@ run_medaka() {
     emit "Processing file: $input_file"
 
     # Create the "polished" folder in the parent directory
-    main_dir="${input_file%%/*}"
+    main_dir="${input_file%/*/*}"
     assembly_dir="$(basename "$input_file")"
     polished_folder="$main_dir/polished"
     mkdir -p "$polished_folder"
@@ -91,38 +98,31 @@ run_medaka() {
 
     # Run medaka on the input file
     medaka_consensus -i "$input_file" \
-                 -d "$main_dir"/assembled/"$assembly_dir"/assembly.fasta \
-                 -o "$output" -m "$medaka_model" -t "$(nproc)" -b "$batchsize"
+                    -d "$main_dir"/assembled/"$assembly_dir"/assembly.fasta \
+                    -o "$output" -m "$medaka_model" -t "$(nproc)" -b "$BATCHSIZE"
 
     emit "Medaka analysis completed for: $input_file"
     emit ""
 }
 
-### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------------
+### VARIABLE DECLARATION ---------------------------------------------------------------------------------------------------------------
+
+VERBOSE=0
+BATCHSIZE=100
+
+### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------
 # Parse command-line options
-while getopts ":c:i:o:k:m:b:" opt; do
+
+while getopts "c:i:o:k:m:bv" opt; do
     case "${opt}" in
-        c)
-            guppy_config=${OPTARG}
-            ;;
-        i)
-            input_dir=${OPTARG}
-            ;;
-        o)
-            output_dir=${OPTARG}
-            ;;
-        k)
-            barcode_kits=${OPTARG}
-            ;;
-        m)
-            medaka_model=${OPTARG}
-            ;;
-        b)
-            batchsize=${OPTARG}
-            ;;
-        *)
-            usage
-            ;;
+        c) guppy_config=${OPTARG};;
+        i) input_dir=${OPTARG};;
+        o) output_dir=${OPTARG};;
+        k) barcode_kits=${OPTARG};;
+        m) medaka_model=${OPTARG};;
+        b) BATCHSIZE=${OPTARG};;
+        v) VERBOSE=1;;
+        *) usage;;
     esac
 done
 
@@ -131,6 +131,8 @@ done
 if [[ -z "${guppy_config:-}" || -z "${input_dir:-}" || -z "${output_dir:-}" || -z "${barcode_kits:-}" || -z "${medaka_model:-}" ]]; then
     usage
 fi
+
+### DATA PROCESSING --------------------------------------------------------------------------------------------------------------------
 
 # Step 1: Run guppy_basecaller
 guppy_basecaller --disable_pings -x auto \
@@ -142,7 +144,7 @@ guppy_basecaller --disable_pings -x auto \
 guppy_barcoder -t "$(nproc)" --disable_pings -x auto \
     --barcode_kits "$barcode_kits" --enable_trim_barcodes \
     -i "$output_dir/basecalled" --recursive \
-    -s "$output_dir/home/sequser/miniconda3/etc/profile.d/conda.shir/trimmed" --compress_fastq
+    -s "$output_dir/trimmed" --compress_fastq
 
 # Step 3: Join fastq.gz files
 
