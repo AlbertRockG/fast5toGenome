@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 -*-
+# Created on Fri June 23 14:31:04 2023    
+# @author: AlbertRockG
+
+export LC_ALL="C"
+set -euop pipefail
+### FUNCTIONS --------------------------------------------------------------------------------------------------------------------------
+# Function to display usage information
+usage() {
+    printf '
+Usage: %s [OPTIONS]
+
+    Basecalls, trims, joins, assembles and polish bacteria isolates genome sequencing
+    data. Take fast5 files as inputs.
+
+    OPTIONS
+        -c  Guppy config file
+        -i  Input directory
+        -o  Output directory: different from the input directory
+        -k  Barcode kits
+        -m  Medaka model: only high accuracy models supported
+        -b  GPU memory control: controls memory use (default: 100)
+        -v  Enable verbosity
+    ' "$(basename "$0")" &&
+        exit 1
+}
+
+err_msg() {
+    echo "${0##*/}: $*" >&2; 
+}
+
+emit() {
+    (( !VERBOSE )) || err_msg "$*"; 
+}
+
+err_exit() {
+    err_msg "$*";
+    exit 1; 
+}
+
+# Function to concatenate fastq.gz files in a subfolder
+concatenate_fastq() {
+    local subfolder="$1"
+
+    emit "Processing subfolder: $subfolder"
+
+    # Create the "joined" folder in the parent directory
+    parent_dir="${subfolder%/*/*}"
+    joined_folder="$parent_dir/joined"
+    mkdir -p "$joined_folder"
+
+    # Create output file name based on subfolder name
+    output_file="$joined_folder/$(basename "$subfolder").fastq.gz"
+
+    # Concatenate fastq.gz files into the output file
+    gunzip -c "$subfolder"/*.fastq.gz | gzip -c > "$output_file"
+
+    emit "Concatenated fastq.gz files into: $output_file"
+    emit ""
+}
+
+# Function to run flye on a joined_fastq file
+run_flye() {
+    local input_file="$1"
+
+    emit "Processing file: $input_file"
+
+    # Create the "assembled" folder in the parent directory
+    parent_dir="${input_file%/*/*}"
+    assembly_folder="$parent_dir/assembled"
+    mkdir -p "$assembly_folder"
+
+    # Create output file name based on subfolder name
+    output="$assembly_folder/$(basename "$input_file")"
+
+    # Run flye on the input file
+    flye -t "$(nproc)" --out-dir "$output" --nano-hq "$input_file"
+
+    emit "Flye analysis completed for: $input_file"
+    emit ""
+}
+
+# Function to run flye on a joined_fastq file
+run_medaka() {
+    local input_file="$1"
+
+    emit "Processing file: $input_file"
+
+    # Create the "polished" folder in the parent directory
+    main_dir="${input_file%/*/*}"
+    assembly_dir="$(basename "$input_file")"
+    polished_folder="$main_dir/polished"
+    mkdir -p "$polished_folder"
+
+    # Create output dir name based on the input file name
+    output="$polished_folder/$(basename "$input_file")"
+
+    # Run medaka on the input file
+    medaka_consensus -i "$input_file" \
+                    -d "$main_dir"/assembled/"$assembly_dir"/assembly.fasta \
+                    -o "$output" -m "$medaka_model" -t "$(nproc)" -b "$BATCHSIZE"
+
+    emit "Medaka analysis completed for: $input_file"
+    emit ""
+}
+
+### VARIABLE DECLARATION ---------------------------------------------------------------------------------------------------------------
+
+VERBOSE=0
+BATCHSIZE=100
+
+### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------
+# Parse command-line options
+
+while getopts "c:i:o:k:m:bv" opt; do
+    case "${opt}" in
+        c) guppy_config=${OPTARG};;
+        i) input_dir=${OPTARG};;
+        o) output_dir=${OPTARG};;
+        k) barcode_kits=${OPTARG};;
+        m) medaka_model=${OPTARG};;
+        b) BATCHSIZE=${OPTARG};;
+        v) VERBOSE=1;;
+        *) usage;;
+    esac
+done
+
+# Check if all required options are provided
+
+if [[ -z "${guppy_config:-}" || -z "${input_dir:-}" || -z "${output_dir:-}" || -z "${barcode_kits:-}" || -z "${medaka_model:-}" ]]; then
+    usage
+fi
+
+### DATA PROCESSING --------------------------------------------------------------------------------------------------------------------
+
+# Step 1: Run guppy_basecaller
+guppy_basecaller --disable_pings -x auto \
+    -c "$guppy_config" \
+    -i "$input_dir" --recursive \
+    -s "$output_dir/basecalled"
+
+# Step 2: Run guppy_barcoder
+guppy_barcoder -t "$(nproc)" --disable_pings -x auto \
+    --barcode_kits "$barcode_kits" --enable_trim_barcodes \
+    -i "$output_dir/basecalled" --recursive \
+    -s "$output_dir/trimmed" --compress_fastq
+
+# Step 3: Join fastq.gz files
+
+# Loop through subfolders in the input folder
+for subfolder in "$output_dir"/trimmed/*; do
+    [[ ! -d "$subfolder" ]] || concatenate_fastq "$subfolder" || emit "no such directory: $subfolder"
+done
+
+# Step 4: Run flye
+for input_file in "$output_dir"/joined/*.fastq.gz; do
+    [[ ! -f $input_file ]] || run_flye "$input_file" || emit "no such file: $input_file"
+done
+
+# Step 6: Run medaka_consensus
+for input_file in "$output_dir"/joined/*.fastq.gz; do
+    [[ ! -f $input_file ]] || run_medaka "$input_file" || emit "no such file: $input_file"
+done
