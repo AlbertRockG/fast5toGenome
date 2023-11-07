@@ -33,6 +33,8 @@ To run this pipeline, kindly follow this instructions:
 git clone https://github.com/AlbertRockG/fast5toGenome
 cd fast5Genome/
 export PATH="$PWD/fast5Genome:$PATH"
+# To activate the medaka environment, if using conda
+conda activate medaka
 
 # Example of running
 ./fast5pipeline -c dna_r9.4.1_450bps_hac.cfg \\
@@ -47,7 +49,7 @@ export PATH="$PWD/fast5Genome:$PATH"
 
 I would like to express my gratitude to the following individuals and organizations for their valuable contributions and support:
 
-- Marco, a senior bioinformatician, for providing guidance and assistance throughout the process.
+- [Marco](https://github.com/zwets), a senior Bioinformatician, for providing guidance and assistance throughout the process.
 - FAO (Food and Agriculture Organization), SeqAfrica, and FlemingFund for their support in funding and resources.
 - The Noguchi Memorial Institute for Medical Research for providing the infrastructure and facilities for this project.
 
