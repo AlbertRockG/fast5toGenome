@@ -27,12 +27,16 @@ Before using this pipeline, you need to setup the required environment by instal
 
 ### Run fast5pipeline
 
-To run this pipeline, kindly follow this instructions:
+To run this pipeline, kindly follow this instructions from your terminal:
 
 ```bash
+# To get the pipeline source code on your laptop
 git clone https://github.com/AlbertRockG/fast5toGenome
+
+# To add fast5pipeline to the PATH
 cd fast5Genome/
-export PATH="$PWD/fast5Genome:$PATH"
+export PATH="$PWD:$PATH"
+
 # To activate the medaka environment, if using conda
 conda activate medaka
 
