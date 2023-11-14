@@ -6,13 +6,18 @@ bin-release/
 
 # Other files and folders
 .settings/
+./data/OUT_DIR/*
 
-# Executables
+# files with extension
 *.swf
 *.air
 *.ipa
 *.apk
-
+*.log
+*.fast5
+*.fastq
+*.fastq.gz
+*.fasta
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.

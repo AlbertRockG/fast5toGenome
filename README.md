@@ -11,8 +11,8 @@ OPTIONS:
 -o: Path to the directory where processed data will be stored. This directory will be created if it doesn't exist.
 -k: Barcode kits to be used for barcoding.
 -m: medaka model for consensus polishing.
--b: GPU memory control for medaka (optional)
--v: Enable verbosity.
+-b: GPU memory control for medaka (optional).
+-v: Enable verbosity (optional).
 ```
 
 ## Instructions to running fast5pipeline 
@@ -27,15 +27,15 @@ Before using this pipeline, you need to setup the required environment by instal
 
 ### Run fast5pipeline
 
-To run this pipeline, kindly follow this instructions from your terminal:
+To run this pipeline, kindly follow this instructions in your terminal from your home directory:
 
 ```bash
 # To get the pipeline source code on your laptop
 git clone https://github.com/AlbertRockG/fast5toGenome
 
-# To add fast5pipeline to the PATH
-cd fast5Genome/
-export PATH="$PWD:$PATH"
+# To add fast5pipeline to the PATH if using bash shell
+echo "export PATH=$PATH:$HOME/fast5Genome" >> .bashrc
+source .bashrc
 
 # To activate the medaka environment, if using conda
 conda activate medaka
