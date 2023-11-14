@@ -5,8 +5,10 @@ bin-release/
 [Bb]in/
 
 # Other files and folders
-.settings/
-./data/OUT_DIR/*
+/data/*
+/.gitpod.yml
+/.gitpod.Dockerfile
+/nextflow.config
 
 # files with extension
 *.swf
