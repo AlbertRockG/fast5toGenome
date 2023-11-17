@@ -113,7 +113,7 @@ BATCHSIZE=100
 ### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------
 # Parse command-line options
 
-while getopts "c:i:o:k:m:bv" opt; do
+while getopts "c:i:o:k:m:b:v" opt; do
     case "${opt}" in
         c) guppy_config=${OPTARG};;
         i) input_dir=${OPTARG};;
