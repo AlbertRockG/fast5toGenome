@@ -9,21 +9,33 @@ set -euop pipefail
 # Function to display usage information
 usage() {
     printf '
-Usage: %s [OPTIONS]
+Description:
+    The fast5pipeline tool is designed to perform a series of processing steps on bacterial isolate genome sequencing data obtained in the form of fast5 files.
+    The pipeline includes basecalling, trimming, joining, assembly, and polishing of the genomic data.
 
-    Basecalls, trims, joins, assembles and polish bacteria isolates genome sequencing
-    data. Take fast5 files as inputs.
+Usage:
 
-    OPTIONS
-        -c  Guppy config file
-        -i  Input directory
-        -o  Output directory: different from the input directory
-        -k  Barcode kits
-        -m  Medaka model: only high accuracy models supported
-        -b  GPU memory control: controls memory use (default: 100)
-        -v  Enable verbosity
-    ' "$(basename "$0")" &&
-        exit 1
+With required options:
+    fast5pipeline -c GUPPY_CONFIG -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -k BARCODE_KITS -m MODEL
+
+With control of the batch size:
+    fast5pipeline -c GUPPY_CONFIG -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -k BARCODE_KITS -m MODEL -b BATCH_SIZE
+
+With verbosity:
+    fast5pipeline -c GUPPY_CONFIG -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -k BARCODE_KITS -m MODEL -v
+
+Required options:
+    -c  GUPPY_CONFIG      Guppy config file (e.g., dna_r9.4.1_450bps_hac.cfg).
+    -i  INPUT_DIRECTORY   Path to input directory containing fast5 files (Does not support POD5 files yet).
+    -o  OUTPUT_DIRECTORY  Output directory (different from the input directory).
+    -k  BARCODE_KITS      Space-separated list of barcoding kit(s) or expansion kit(s) to detect (provide in double quotes).
+    -m  MODEL             Medaka model (only high accuracy models supported: e.g., r941_min_hac_g507).
+
+Optional options:
+    -b  BATCH_SIZE        GPU memory control for medaka inference batch size (default: 100).
+    -v                    Enable verbosity (provides additional information during processing).
+
+    ' && exit 1
 }
 
 err_msg() {
