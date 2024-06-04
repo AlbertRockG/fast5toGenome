@@ -125,18 +125,18 @@ BATCHSIZE=100
 ### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------
 # Parse command-line options
 
-while getopts "c:i:o:k:m:b:v" opt; do
-    case "${opt}" in
-        c) guppy_config=${OPTARG};;
-        i) input_dir=${OPTARG};;
-        o) output_dir=${OPTARG};;
-        k) barcode_kits=${OPTARG};;
-        m) medaka_model=${OPTARG};;
-        b) BATCHSIZE=${OPTARG};;
-        v) VERBOSE=1;;
-        *) usage;;
-    esac
-done
+# while getopts "c:i:o:k:m:b:v" opt; do
+#     case "${opt}" in
+#         c) guppy_config=${OPTARG};;
+#         i) input_dir=${OPTARG};;
+#         o) output_dir=${OPTARG};;
+#         k) barcode_kits=${OPTARG};;
+#         m) medaka_model=${OPTARG};;
+#         b) BATCHSIZE=${OPTARG};;
+#         v) VERBOSE=1;;
+#         *) usage;;
+#     esac
+# done
 
 # Check if all required options are provided
 
