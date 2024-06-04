@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# -*- coding: utf-8 -*-
+# Created on Fri June 23 14:31:04 2023    
+# @author: AlbertRockG
+
+export LC_ALL="C"
+set -euop pipefail
+### FUNCTIONS --------------------------------------------------------------------------------------------------------------------------
+# Function to display usage information
+usage() {
+    printf '
+The fastqpipeline tool is designed to perform a series of processing steps on bacterial isolate genome sequencing data obtained in the form of fast5 files. The pipeline includes assembly and polishing of the genomic data. This supposed that the sequencing data were basecalled and joined in single compressed fastq files per sample.
+
+Usage:
+
+Syntax with required options:
+    fastqpipeline -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -m MODEL
+
+Syntax with control of the batch size:
+    fastqpipeline -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -m MODEL -b BATCH_SIZE
+
+Syntax with verbosity:
+    fastqpipeline -i INPUT_DIRECTORY -o OUTPUT_DIRECTORY -m MODEL -v
+
+Required options:
+    -i  INPUT_DIRECTORY   Path to input directory containing compressed fastq files.
+    -o  OUTPUT_DIRECTORY  Output directory (different from the input directory).
+    -m  MODEL             Medaka model (only high accuracy models supported: e.g., r941_min_hac_g507).
+
+Optional options:
+    -b  BATCH_SIZE        GPU memory control for medaka inference batch size (default: 100).
+    -t  NTHREADS          Number of threads to provide for the analysis (default: 2).
+    -v                    Enable verbosity (provides additional information during processing).
+' && exit 1
+}
+
+err_msg() {
+    echo "${0##*/}: $*" >&2; 
+}
+
+emit() {
+    (( !VERBOSE )) || err_msg "$*"; 
+}
+
+err_exit() {
+    err_msg "$*";
+    exit 1; 
+}
+
+# Function to run flye on a joined_fastq file
+run_flye() {
+    local input_file="$1"
+    local output_dir="$2"
+
+    emit "Processing file: $input_file"
+
+    # Create the "assembled" folder in the parent directory
+    assembly_folder="$output_dir/assembled"
+    mkdir -p "$assembly_folder"
+
+    # Create output file name based on subfolder name
+    filename=$(basename -- "$input_file")
+    filename="${filename%.*}"
+    file_name="${filename%.*}"
+    output="$assembly_folder"/"$file_name"
+    mkdir -p "$output"
+
+    # Run flye on the input file
+    flye -t "$(nproc)" --out-dir "$output" --nano-hq "$input_file"
+
+    emit "Flye analysis completed for: $input_file"
+    emit ""
+}
+
+# Function to run flye on a joined_fastq file
+run_medaka() {
+    local input_file="$1"
+    local output_dir="$2"
+
+    emit "Processing file: $input_file"
+
+    # Create the "polished" folder in the parent directory
+    polished_folder="$output_dir/polished"
+    mkdir -p "$polished_folder"
+
+    # Create output dir name based on the input file name
+    filename=$(basename -- "$input_file")
+    filename="${filename%.*}"
+    file_name="${filename%.*}"
+    output="$polished_folder"/"$file_name"
+    mkdir -p "$output"
+
+    # Run medaka on the input file
+    medaka_consensus -i "$input_file" \
+                    -d "$output_dir"/assembled/"$file_name"/assembly.fasta \
+                    -o "$output" -m "$medaka_model" -t "$NTHREADS" -b "$BATCHSIZE"
+
+    emit "Medaka analysis completed for: $input_file"
+    emit ""
+}
+
+### VARIABLE DECLARATION ---------------------------------------------------------------------------------------------------------------
+
+VERBOSE=0
+BATCHSIZE=100
+NTHREADS=2
+
+### ARGS PARSING -----------------------------------------------------------------------------------------------------------------------
+# Parse command-line options
+
+while getopts "i:o:m:b:t:v" opt; do
+    case "${opt}" in
+        i) input_dir=${OPTARG};;
+        o) output_dir=${OPTARG};;
+        m) medaka_model=${OPTARG};;
+        b) BATCHSIZE=${OPTARG};;
+        t) NTHREADS=${OPTARG};;
+        v) VERBOSE=1;;
+        \?) usage;;
+    esac
+done
+
+# Check if all required options are provided
+
+if [[ -z "${input_dir:-}" || -z "${output_dir:-}" || -z "${medaka_model:-}" ]]; then
+    usage
+fi
+
+### DATA PROCESSING --------------------------------------------------------------------------------------------------------------------
+
+# Step 1: Run flye
+for input_file in "$input_dir"/*.fastq.gz; do
+    [[ ! -f $input_file ]] || run_flye "$input_file"  "$output_dir" || emit "no such file: $input_file"
+done
+
+# Step 2: Run medaka_consensus
+for input_file in "$input_dir"/*.fastq.gz; do
+    [[ ! -f $input_file ]] || run_medaka "$input_file" "$output_dir" || emit "no such file: $input_file"
+done
